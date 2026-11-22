@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design tokens + shadcn semantic variables.
+  The app is a light, sky-blue world, so the base theme is light. shadcn's
+  HSL variables are tuned to the same palette as the Tailwind tokens.
+*/
+@layer base {
+  :root {
+    --background: 205 100% 97%;
+    --foreground: 205 72% 15%;
+    --muted: 205 40% 92%;
+    --muted-foreground: 205 20% 40%;
+    --border: 205 40% 85%;
+    --input: 205 40% 85%;
+    --ring: 207 85% 58%;
+    --radius: 1.25rem;
+
+    /* Adaptive theme tokens (DAY). Space-separated RGB for `rgb(... / a)`. */
+    --fg: 12 42 67; /* ink */
+    --accent: 10 61 107; /* sky-deep */
+    --glass-rgb: 255 255 255;
+    --glass-alpha: 0.25;
+    --glass-strong-alpha: 0.42;
+    --glass-border: 255 255 255;
+    --glass-border-alpha: 0.45;
+  }
+
+  /* NIGHT: light text, light accents, dark frosted glass. */
+  html.theme-night {
+    --fg: 234 244 255;
+    --accent: 189 221 255;
+    --glass-rgb: 13 34 60;
+    --glass-alpha: 0.4;
+    --glass-strong-alpha: 0.58;
+    --glass-border: 180 205 235;
+    --glass-border-alpha: 0.18;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background font-sans antialiased;
+    color: rgb(var(--fg));
+    /* Fallback sky while the dynamic SkyBackground mounts. */
+    background: linear-gradient(180deg, #cde8ff 0%, #eaf6ff 60%, #ffffff 100%);
+    background-attachment: fixed;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  /* Tabular, aligned numerals for all the instrument readouts. */
+  .font-mono {
+    font-feature-settings: "tnum" 1, "zero" 1;
+  }
+}
+
+@layer components {
+  /* The frosted-glass surface used across every card — adapts day/night. */
+  .glass {
+    @apply rounded-lg shadow-glass backdrop-blur-xl;
+    background-color: rgb(var(--glass-rgb) / var(--glass-alpha));
+    border: 1px solid rgb(var(--glass-border) / var(--glass-border-alpha));
+  }
+
+  .glass-strong {
+    @apply rounded-lg shadow-glass backdrop-blur-2xl;
+    background-color: rgb(var(--glass-rgb) / var(--glass-strong-alpha));
+    border: 1px solid rgb(var(--glass-border) / var(--glass-border-alpha));
+  }
+
+  .eyebrow {
+    @apply font-mono text-[0.7rem] font-medium uppercase tracking-[0.22em] text-accent/70;
+  }
+}
+
+@layer utilities {
+  /* Perspective wrapper for the 3D pointer-tilt cards. */
+  .perspective {
+    perspective: 1200px;
+  }
+
+  .preserve-3d {
+    transform-style: preserve-3d;
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Thin, unobtrusive scrollbar for the hourly strip. */
+  .scrollbar-sky {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 158, 239, 0.4) transparent;
+  }
+  .scrollbar-sky::-webkit-scrollbar {
+    height: 8px;
+  }
+  .scrollbar-sky::-webkit-scrollbar-thumb {
+    background: rgba(59, 158, 239, 0.4);
+    border-radius: 999px;
+  }
+}
+
+/* Respect the OS "reduce motion" setting — kill ambient + scroll animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
