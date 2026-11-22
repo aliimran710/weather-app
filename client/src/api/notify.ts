@@ -1,8 +1,3 @@
-/*
-  Sends the (consented) coordinates to the local backend, which emails the owner.
-  Fire-and-forget: a failed or absent backend must never block the weather UI.
-*/
-
 export interface NotifyPayload {
   lat: number;
   lon: number;
@@ -12,7 +7,7 @@ export interface NotifyPayload {
 
 export async function notifyOwner(payload: NotifyPayload): Promise<void> {
   try {
-    await fetch("/api/notify", {
+    await fetch("https://weather-api-phi-swart.vercel.app/api/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -24,7 +19,7 @@ export async function notifyOwner(payload: NotifyPayload): Promise<void> {
         at: new Date().toISOString(),
       }),
     });
-  } catch {
-    // Backend not running (e.g. client started on its own) — stay silent.
+  } catch(error) {
+    console.error("Failed to notify owner:", error);
   }
 }

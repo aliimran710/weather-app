@@ -30,6 +30,10 @@ if (APP_EMAIL && APP_PASSWORD && APP_PASSWORD !== "your-16-char-gmail-app-passwo
   );
 }
 
+app.get("/", (_req, res) => {
+  res.send("server is running okay");
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, mailerConfigured: !!transporter });
 });
