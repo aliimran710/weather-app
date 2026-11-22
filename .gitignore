@@ -22,3 +22,6 @@ Thumbs.db
 
 # playwright MCP screenshots (local dev artifacts)
 .playwright-mcp
+
+# Vercel (CLI link + local build cache)
+.vercel

@@ -96,6 +96,58 @@ Other client scripts: `npm run build` (bundle to `client/dist/`), `npm run previ
 `npm run typecheck`. Backend: `npm run dev` runs it with `--watch` (auto-restart on
 edits).
 
+## Deploy to Vercel
+
+The repo is set up as **one Vercel project**: the frontend is served statically from
+`client/dist`, and the backend runs as serverless functions under `/api`. Because they
+share one domain, the frontend's `/api/notify` call hits the function directly — no CORS,
+no proxy, no code change.
+
+Files involved:
+
+- `vercel.json` — builds the client and declares the `api/*.js` functions.
+- `package.json` (root) — installs `nodemailer` for the functions.
+- `api/notify.js` → `POST /api/notify`, `api/health.js` → `GET /api/health`
+  (`api/_mailer.js` is shared and not routed).
+
+The Express app in `server/` is **not** used on Vercel — it's only for the local
+two-terminal workflow. The `api/` functions are its serverless equivalent.
+
+### Steps
+
+1. Install the CLI and log in:
+   ```bash
+   npm i -g vercel
+   vercel login
+   ```
+2. From the project root, link/create the project:
+   ```bash
+   vercel
+   ```
+3. Add the secrets as Environment Variables (Production + Preview), **never committed**:
+   ```bash
+   vercel env add APP_EMAIL
+   vercel env add APP_PASSWORD
+   vercel env add NOTIFY_TO
+   ```
+   (Or set them in the Vercel dashboard → Project → Settings → Environment Variables.)
+4. Deploy:
+   ```bash
+   vercel --prod
+   ```
+
+### Notes
+
+- **Ports:** serverless functions have no fixed port — Vercel manages that. Locally,
+  `vercel dev` serves the client + functions together on one port (default 3000). The
+  `8787` port only applies to the standalone `server/` Express used in the non-Vercel
+  local workflow.
+- **Privacy:** a public deployment emails you the real, consented location of every
+  visitor who clicks Allow. Keep the footer disclosure and share the URL only with
+  people who understand that.
+- **Secrets:** they live solely in Vercel's environment variables. `server/.env` is
+  gitignored and never uploaded (`.vercelignore` also excludes `server/`).
+
 ## How the location alert works
 
 1. The browser shows its native location permission prompt. Nothing precise is read
