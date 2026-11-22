@@ -1,92 +1,116 @@
-require("dotenv").config();
-const express = require("express");
-const cookieParser = require("cookie-parser");
-const cors = require("cors");
-const serverless = require("serverless-http");
-const nodemailer = require("nodemailer");
-const serverless = require("serverless-http");
+import "dotenv/config";
+import nodemailer from "nodemailer";
+import http from "node:http";
+import { fileURLToPath } from "node:url";
 
-const PORT = process.env.PORT || 8787;
+/*
+  Skyline alert backend — Vercel serverless function (ESM).
+  Routed by server/vercel.json: every path hits this handler, which dispatches
+  by method + path. CORS is driven by the ORIGIN env var so the separate frontend
+  domain is allowed.
+*/
+
 const APP_EMAIL = process.env.APP_EMAIL;
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const NOTIFY_TO = process.env.NOTIFY_TO || APP_EMAIL;
+// The frontend's origin (set this in Vercel). Falls back to "*" if unset.
+const ORIGIN = process.env.ORIGIN || "*";
 
-const app = express();
-app.use(express.json());
-app.use(cors({
-  origin: process.env.ORIGIN,
-  methods: ["GET", "POST", "DELETE", "PUT"],
-  allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Expires", "Pragma",],
-  credentials: true,
-}));
-
-app.use(cookieParser());
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
-
-app.get("/", (req, res) => {
-  res.send("Hello, this is working");
-});
-
-// Build the Gmail transporter once, only if credentials are present.
 let transporter = null;
 if (APP_EMAIL && APP_PASSWORD && APP_PASSWORD !== "your-16-char-gmail-app-password") {
   transporter = nodemailer.createTransport({
     service: "gmail",
     auth: { user: APP_EMAIL, pass: APP_PASSWORD },
   });
-  transporter.verify((err) => {
-    if (err) console.warn("[skyline] Gmail transport not ready:", err.message);
-    else console.log("[skyline] Gmail transport ready — alerts will send.");
-  });
-} else {
-  console.warn(
-    "[skyline] APP_EMAIL / APP_PASSWORD not set in .env — alert emails are DISABLED.\n" +
-      "          Copy .env.example to .env and fill them in to enable alerts."
-  );
 }
 
-app.get("/", (_req, res) => {
-  res.send("server is running okay");
-});
+function setCors(res) {
+  res.setHeader("Access-Control-Allow-Origin", ORIGIN);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Max-Age", "86400");
+}
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, mailerConfigured: !!transporter });
-});
+// Use the parsed body if the platform provided one; otherwise read the stream.
+function readJson(req) {
+  if (req.body && typeof req.body === "object") return Promise.resolve(req.body);
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (c) => (data += c));
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(data || "{}"));
+      } catch {
+        resolve({});
+      }
+    });
+    req.on("error", () => resolve({}));
+  });
+}
 
-app.post("/api/notify", async (req, res) => {
-  const { lat, lon, place, source, userAgent, platform, language, screen, at } =
-    req.body || {};
+function send(res, status, obj) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(obj));
+}
 
-  if (typeof lat !== "number" || typeof lon !== "number") {
-    return res.status(400).json({ ok: false, error: "lat/lon required" });
+export default async function handler(req, res) {
+  setCors(res);
+
+  // Preflight
+  if (req.method === "OPTIONS") {
+    res.statusCode = 204;
+    res.end();
+    return;
   }
 
-  // Always log locally, even when email is off.
-  console.log(
-    `[skyline] visit @ ${new Date().toISOString()} — ${place || "?"} (${lat}, ${lon}) via ${source || "?"}`
-  );
+  const pathname = (req.url || "/").split("?")[0];
 
-  if (!transporter) {
-    return res.json({ ok: true, emailed: false, reason: "mailer-not-configured" });
+  if (req.method === "GET" && pathname === "/") {
+    res.setHeader("Content-Type", "text/plain");
+    res.end("Skyline backend OK");
+    return;
   }
 
-  try {
-    await transporter.sendMail(buildEmail({
-      lat, lon, place, source, userAgent, platform, language, screen, at,
-      ip: req.ip,
-    }));
-    res.json({ ok: true, emailed: true });
-  } catch (err) {
-    console.error("[skyline] failed to send alert:", err.message);
-    res.status(502).json({ ok: false, error: "send-failed" });
+  if (req.method === "GET" && pathname === "/api/health") {
+    send(res, 200, { ok: true, mailerConfigured: !!transporter });
+    return;
   }
-});
 
-/*
-  Email template — a decision point worth tuning: adjust the subject line, which
-  fields appear, or the styling to taste.
-*/
+  if (req.method === "POST" && pathname === "/api/notify") {
+    const body = await readJson(req);
+    const { lat, lon, place, source, userAgent, platform, language, screen, at } = body;
+
+    if (typeof lat !== "number" || typeof lon !== "number") {
+      send(res, 400, { ok: false, error: "lat/lon required" });
+      return;
+    }
+
+    console.log(
+      `[skyline] visit — ${place || "?"} (${lat}, ${lon}) via ${source || "?"}`
+    );
+
+    if (!transporter) {
+      send(res, 200, { ok: true, emailed: false, reason: "mailer-not-configured" });
+      return;
+    }
+
+    try {
+      await transporter.sendMail(
+        buildEmail({ lat, lon, place, source, userAgent, platform, language, screen, at })
+      );
+      send(res, 200, { ok: true, emailed: true });
+    } catch (err) {
+      console.error("[skyline] send failed:", err.message);
+      send(res, 502, { ok: false, error: "send-failed" });
+    }
+    return;
+  }
+
+  send(res, 404, { ok: false, error: "not-found" });
+}
+
 function buildEmail(v) {
   const maps = `https://www.google.com/maps?q=${v.lat},${v.lon}`;
   const when = v.at ? new Date(v.at).toLocaleString() : new Date().toLocaleString();
@@ -141,11 +165,11 @@ function row(label, value) {
   </tr>`;
 }
 
-const server = app.listen(process.env.PORT, () => {
-  console.log(`Server is running on port ${process.env.PORT}`);
-});
-
-server.setTimeout(10 * 60 * 1000);
-
-module.exports = app;
-module.exports.handler = serverless(app);
+// Local dev only: `node api/index.js` starts a real HTTP server. On Vercel this
+// block is skipped (the function is imported, not run as the main module).
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const PORT = process.env.PORT || 8787;
+  http.createServer((req, res) => handler(req, res)).listen(PORT, "127.0.0.1", () => {
+    console.log(`[skyline] backend on http://127.0.0.1:${PORT}`);
+  });
+}
