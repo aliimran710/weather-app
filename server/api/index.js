@@ -1,7 +1,10 @@
-import "dotenv/config";
-import express from "express";
-import cors from "cors";
-import nodemailer from "nodemailer";
+require("dotenv").config();
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const cors = require("cors");
+const serverless = require("serverless-http");
+const nodemailer = require("nodemailer");
+const serverless = require("serverless-http");
 
 const PORT = process.env.PORT || 8787;
 const APP_EMAIL = process.env.APP_EMAIL;
@@ -9,8 +12,21 @@ const APP_PASSWORD = process.env.APP_PASSWORD;
 const NOTIFY_TO = process.env.NOTIFY_TO || APP_EMAIL;
 
 const app = express();
-app.use(cors({ origin: true }));
 app.use(express.json());
+app.use(cors({
+  origin: process.env.ORIGIN,
+  methods: ["GET", "POST", "DELETE", "PUT"],
+  allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Expires", "Pragma",],
+  credentials: true,
+}));
+
+app.use(cookieParser());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+app.get("/", (req, res) => {
+  res.send("Hello, this is working");
+});
 
 // Build the Gmail transporter once, only if credentials are present.
 let transporter = null;
@@ -125,6 +141,11 @@ function row(label, value) {
   </tr>`;
 }
 
-app.listen(PORT, "127.0.0.1", () => {
-  console.log(`[skyline] alert backend on http://127.0.0.1:${PORT}`);
+const server = app.listen(process.env.PORT, () => {
+  console.log(`Server is running on port ${process.env.PORT}`);
 });
+
+server.setTimeout(10 * 60 * 1000);
+
+module.exports = app;
+module.exports.handler = serverless(app);
