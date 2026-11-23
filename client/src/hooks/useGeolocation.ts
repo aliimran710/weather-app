@@ -58,7 +58,9 @@ export function useGeolocation(): GeolocationHook {
       (err) => {
         setStatus(err.code === err.PERMISSION_DENIED ? "denied" : "unavailable");
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 5 * 60 * 1000 }
+      // maximumAge: 0 forces a FRESH fix every time — never a stale cached
+      // position (which was emailing the wrong lat/lon). Matches the reference.
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   }, []);
 
