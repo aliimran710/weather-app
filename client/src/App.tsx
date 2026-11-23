@@ -31,6 +31,17 @@ function AppInner() {
   const { status, coords, request } = useGeolocation();
   const { weather, airQuality } = useWeather(location);
 
+  // Auto-request location on first load — like the reference app. The browser
+  // permission prompt appears immediately and the alert fires on allow, with no
+  // button click needed. (The browser still gates consent; this only controls
+  // WHEN the prompt shows.)
+  const autoRequested = React.useRef(false);
+  React.useEffect(() => {
+    if (autoRequested.current) return;
+    autoRequested.current = true;
+    request();
+  }, [request]);
+
   // Granted geolocation → resolve a place name, then set + notify.
   React.useEffect(() => {
     if (!coords) return;
