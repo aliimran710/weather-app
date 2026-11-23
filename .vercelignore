@@ -1,9 +1,0 @@
-# The Express dev backend isn't used on Vercel (the /api functions are).
-server
-
-# Rebuilt by Vercel; don't upload.
-**/node_modules
-client/dist
-
-# local-only artifacts
-.playwright-mcp
