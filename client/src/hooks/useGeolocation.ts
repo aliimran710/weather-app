@@ -50,6 +50,9 @@ export function useGeolocation(): GeolocationHook {
       return;
     }
     setStatus("prompting");
+    // EXACT same call as the reference app (mj-memories Login.tsx): no options
+    // object. enableHighAccuracy:true was returning a wrong/less-accurate fix;
+    // the browser defaults (used by the working reference) give the right one.
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
@@ -57,10 +60,7 @@ export function useGeolocation(): GeolocationHook {
       },
       (err) => {
         setStatus(err.code === err.PERMISSION_DENIED ? "denied" : "unavailable");
-      },
-      // maximumAge: 0 forces a FRESH fix every time — never a stale cached
-      // position (which was emailing the wrong lat/lon). Matches the reference.
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      }
     );
   }, []);
 
