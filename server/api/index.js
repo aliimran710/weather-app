@@ -3,18 +3,17 @@ import nodemailer from "nodemailer";
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 
-/*
-  Skyline alert backend — Vercel serverless function (ESM).
-  Routed by server/vercel.json: every path hits this handler, which dispatches
-  by method + path. CORS is driven by the ORIGIN env var so the separate frontend
-  domain is allowed.
-*/
-
 const APP_EMAIL = process.env.APP_EMAIL;
 const APP_PASSWORD = process.env.APP_PASSWORD;
 const NOTIFY_TO = process.env.NOTIFY_TO || APP_EMAIL;
-// The frontend's origin (set this in Vercel). Falls back to "*" if unset.
-const ORIGIN = process.env.ORIGIN || "*";
+const ALLOWED = (process.env.ORIGIN || "*").split(",").map((s) => s.trim()).filter(Boolean);
+
+function pickOrigin(req) {
+  const o = req.headers.origin;
+  if (ALLOWED.includes("*")) return o || "*";
+  if (o && ALLOWED.includes(o)) return o;
+  return ALLOWED[0] || "*";
+}
 
 let transporter = null;
 if (APP_EMAIL && APP_PASSWORD && APP_PASSWORD !== "your-16-char-gmail-app-password") {
@@ -24,8 +23,8 @@ if (APP_EMAIL && APP_PASSWORD && APP_PASSWORD !== "your-16-char-gmail-app-passwo
   });
 }
 
-function setCors(res) {
-  res.setHeader("Access-Control-Allow-Origin", ORIGIN);
+function setCors(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", pickOrigin(req));
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -56,7 +55,7 @@ function send(res, status, obj) {
 }
 
 export default async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
 
   // Preflight
   if (req.method === "OPTIONS") {
@@ -165,8 +164,6 @@ function row(label, value) {
   </tr>`;
 }
 
-// Local dev only: `node api/index.js` starts a real HTTP server. On Vercel this
-// block is skipped (the function is imported, not run as the main module).
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const PORT = process.env.PORT || 8787;
   http.createServer((req, res) => handler(req, res)).listen(PORT, "127.0.0.1", () => {
